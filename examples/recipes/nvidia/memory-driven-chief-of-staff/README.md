@@ -240,7 +240,7 @@ cd ../..
 test "$fail" -eq 0
 ```
 
-Expected result: every file ends with `OK`, the ten files report 258 tests in
+Expected result: every file ends with `OK`, the ten files report 260 tests in
 total, and the last line is `failed=0`. Do not use `|| break` here; a `for`
 loop reports the status of its last command, so a failing test would still
 leave the loop exiting `0`.
@@ -469,6 +469,33 @@ The fixtures were written from scratch. The people, the company, the projects,
 and every message body are invented. Nothing is derived from a real mailbox or
 from an anonymized copy of one. See [`fixtures/README.md`](fixtures/README.md)
 for what each record is a control for.
+
+### Connecting Slack
+
+The scheduled intake reads whichever collectors are present in
+`profile/scripts/`. Slack is one of them, and it is read-only: direct
+messages, group DMs, and the public channels you are in. It never posts.
+
+```bash
+bash scripts/setup-slack.sh
+```
+
+That reuses a Slack credential already attached to the sandbox when it finds
+one, and otherwise walks you through creating an app from the bundled
+manifest. Full walkthrough, including what to do when a workspace admin
+grants less than the app asked for:
+[`docs/set-up-slack.md`](docs/set-up-slack.md).
+
+Two things are deliberate. The recipe needs a **user** token (`xoxp-`), not a
+bot token — a bot cannot read your direct messages, and pasting one produces
+an assistant that quietly never sees them, so the collector checks the prefix
+and names the mistake. And it supports **static** tokens only: enabling
+rotation on a Slack app cannot be undone, and nothing here refreshes an
+expiring one, so a rotating token is refused rather than working for an
+afternoon.
+
+Until this is set up the collector is simply absent and the schedule runs over
+whatever is already in the store. That is a supported state, not a broken one.
 
 ### When a collector fails
 
