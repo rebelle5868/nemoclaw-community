@@ -127,6 +127,11 @@ def slack_message_to_item(
         "thread_ref": msg.get("thread_ts") or ts,
         "event_at": _slack_ts_to_iso(ts),
         "sender": sender_name or msg.get("user"),
+        # Carried for the exclusion rules and dropped before the insert: it is
+        # not in ITEM_COLUMNS, so it is matched on and never stored. Without
+        # it a Slack user could only be excluded by the display name they
+        # chose, which they can change at any time.
+        "sender_id": msg.get("user"),
         "subject": None,
         "body": msg.get("text"),
         "permalink": msg.get("permalink"),
