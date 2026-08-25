@@ -91,13 +91,14 @@ those two apart.
 | `profile/scripts/walkthrough.py` | The fixture walkthrough, end to end, with no credentials and no model |
 | `profile/scripts/select_intake.py` | The intake job's pre-step: what to judge, and whether to wake the model at all |
 | `profile/scripts/select_review.py` | The review job's pre-step: the stalest open obligations, oldest review first |
+| `profile/scripts/select_memory.py` | The memory-writing job's pre-step: recurring correspondents, and whether the attention pages have gone stale |
 | `profile/scripts/retention.py` | The retention job: clears message bodies past the window, keeps the record |
 | `profile/scripts/exclusions.py` | Senders, domains and channels that are never written, applied in `insert_items` |
 | `profile/scripts/export_store.py` | Writes the whole store and memory out as Markdown beside JSON |
 | `profile/scripts/reset.py` | Removes the store, the memory and the learned policy together |
 | `scripts/install.sh` | Installs the profile, inherits the runtime's model config, registers the jobs |
-| `scripts/register-jobs.sh` | Registers the six scheduled jobs through the cron CLI. Re-runnable |
-| `profile/skills/` | Five skills: judging, review, repair, consolidation, preference update. Retention needs none — it clears bodies and never wakes the agent |
+| `scripts/register-jobs.sh` | Registers the seven scheduled jobs through the cron CLI. Re-runnable |
+| `profile/skills/` | Six skills: judging, review, memory writing, repair, consolidation, preference update. Retention needs none — it clears bodies and never wakes the agent |
 | `fixtures/` | Eight synthetic messages, a seed memory, and one recorded model turn |
 
 Slack is connected through `scripts/setup-slack.sh`; a Microsoft Graph
@@ -321,23 +322,52 @@ profile afterwards, so a setting that could not be written — or that reports
 success without sticking — ends the run rather than leaving a profile that
 took some of its configuration. The installer then checks both — that a model
 resolves and that a credential is present — and exits before registering any
-job if either is missing, rather than scheduling six jobs that would each
+job if either is missing, rather than scheduling seven jobs that would each
 fail. If your endpoint genuinely needs no key, pass `ALLOW_NO_API_KEY=1` to
 say so.
 
 Re-running it is safe: the registration looks each job up by name and edits it
 rather than adding another copy.
 
-Six jobs are registered:
+Seven jobs are registered:
 
 | Job | Schedule | Pre-step | Skill |
 | --- | --- | --- | --- |
 | intake | every 30 minutes | `select_intake.py` | `inbound-judging` |
 | review | every 6 hours | `select_review.py` | `obligation-review` |
 | retention | daily 02:00 | `retention.py` | — |
+| memory writing | daily 01:00 | `select_memory.py` | `memory-writing` |
 | memory repair | daily 03:00 | — | `memory-repair` |
 | memory consolidation | daily 04:00 | — | `memory-consolidation` |
 | preference update | daily 04:30 | — | `preference-update` |
+
+**Where the memory comes from.** Three of the memory jobs maintain one and
+none of them creates it: repair checks invariants, consolidation compacts
+pages past their ceiling, preference-update writes the policy. The
+memory-writing job is what fills the gap. `select_memory.py` does the
+counting — who has been in touch inside the window, how often, who already has
+a page, which attention pages are past their decay window — and the skill
+decides who is worth a page and what it says.
+
+That job is load-bearing rather than decorative. `ranking.py` reserves `high`
+for work the person has *chosen*, and only `attention/` and `goals/` can
+answer that. With an empty memory nothing reaches the top tier and the
+assistant is left measuring how loudly the outside world is asking, which is
+the thing it exists not to do. Measured on a real mailbox: 952 collected
+messages produced two obligations, both `medium`, because no page could gate
+one higher.
+
+It writes people and attention pages only. A project needs a bounded outcome,
+a durable owner and a distinct identity, and one window of message traffic is
+weak evidence for all three; goals come from the person, and inferring
+somebody's goals from their inbox is the overreach this design avoids. It
+also
+declines to invent a priority: when the evidence supports none, it writes the
+page saying so, because a guessed priority makes the ranking job promote work
+the person never picked.
+
+The job runs at 01:00, before repair and consolidation. Writing last would
+leave every new page unchecked until the following night.
 
 **An idle tick costs nothing.** Each of the first two jobs runs its pre-step
 script first, then one agent turn over that script's output. When the script
@@ -381,10 +411,10 @@ declare `cron`. An update replaces what it does declare — `SOUL.md`,
 `schema.md`, `skills`, `scripts` and the manifest — and leaves the jobs and
 their run history alone. This is worth being deliberate about: `profile
 update` lists `cron/` among the directories it overwrites, and it leaves ours
-alone only because the manifest never claims it. Measured, not assumed: six
-jobs registered, `hermes profile update` run on Hermes 0.19.0, six jobs still
-there with the same ids. A test asserts the manifest never claims `cron` or
-`workspace`.
+alone only because the manifest never claims it. Measured, not assumed: seven
+jobs registered, `hermes profile update` run on Hermes 0.19.0, seven jobs
+still there with the same ids. A test asserts the manifest never claims
+`cron` or `workspace`.
 
 To undo, remove the jobs individually. Deleting the profile removes its
 `workspace` too, which is where the store and the memory live; removing the
@@ -600,7 +630,10 @@ it as well if you want the checkout byte-for-byte as you found it.
 - Compaction is detected but not performed here. Detection is mechanical and
   testable. Deciding what to compact needs the skill, which needs a model.
 - The memory ships with a seed that passes its own checks. It illustrates the
-  schema; it is not a starting point for real use.
+  schema, and it is not where a real memory comes from — the memory-writing
+  job builds that from the messages actually collected. Delete the seed before
+  connecting a real account; a store that holds real correspondents alongside
+  fixture ones ranks against both.
 - The audit trail records one row per obligation a correction displaces, and
   `events` is append-only. That is deliberate — the store has to be able to
   explain why a row moved — but the cost scales with the open list: on a
@@ -669,7 +702,7 @@ Three separate questions, with three different answers.
 **Do the jobs survive?** Yes. They live in `$HERMES_HOME/cron/jobs.json`, which
 is ordinary disk state — not part of the distribution, so a profile update
 leaves it alone, and not tied to any process, so shutting everything down and
-starting again finds the same six jobs with the same ids.
+starting again finds the same seven jobs with the same ids.
 
 **Do they start firing again on their own?** Only if the gateway was installed
 as a service. `hermes -p <profile> gateway install` registers one — a launchd

@@ -300,6 +300,7 @@ class TestTheDocumentedScheduleMatchesTheScript(unittest.TestCase):
         # window, and gates the agent off. Naming one would advertise a
         # capability the job never reaches.
         "retention": ("0 2 * * *", None),
+        "memory writing": ("0 1 * * *", "memory-writing"),
         "memory repair": ("0 3 * * *", "memory-repair"),
         "memory consolidation": ("0 4 * * *", "memory-consolidation"),
         "preference update": ("30 4 * * *", "preference-update"),
