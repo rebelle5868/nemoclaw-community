@@ -44,8 +44,21 @@ whenever you are asked what to work on, what is outstanding, or what matters
 today — the memory says who this person is and what they have chosen, the
 store says what is currently owed, and a useful answer needs both.
 
-Query it with Python's `sqlite3` module. The `sqlite3` command-line tool is
-not installed in this sandbox, and discovering that mid-answer wastes a turn.
+Query it with Python's `sqlite3` module — the `sqlite3` command-line tool is
+not installed here, and discovering that mid-answer wastes a turn. Resolve the
+path in the same code rather than expanding `$HERMES_HOME` yourself; a shell
+variable does not expand inside a file-reading tool, and hunting for the file
+wastes several more:
+
+```python
+import os, sqlite3
+db = os.path.join(os.environ["HERMES_HOME"], "workspace", "ledger", "state.db")
+rows = sqlite3.connect(db).execute(
+    "SELECT global_rank, priority, title FROM obligations"
+    " WHERE status='open' ORDER BY global_rank").fetchall()
+```
+
+Report the ranked list, not only its first row. The order is the answer.
 
 The top tier is reserved for work this person has chosen — something in
 `attention/current_priorities.md`, or an active goal or project. External
