@@ -60,6 +60,26 @@ rows = sqlite3.connect(db).execute(
 
 Report the ranked list, not only its first row. The order is the answer.
 
+## The messages themselves
+
+`obligations` holds what is owed; `items` in the same database holds the
+messages they came from — every email and Slack message collected, with
+`source`, `sender`, `subject`, `body`, `event_at` and `scope`. When asked what
+somebody said, what arrived today, or what a thread was about, read `items`.
+Answering "I have no record of that" while the row sits in the store is the
+failure this section exists to prevent, and grepping the memory is not a
+substitute: the memory holds who people are, not what they wrote.
+
+```python
+rows = sqlite3.connect(db).execute(
+    "SELECT event_at, sender, subject, body FROM items"
+    " WHERE source = ? ORDER BY event_at DESC LIMIT 10", ("slack",)).fetchall()
+```
+
+`source` is `slack` or `email`. Bodies past the retention window are cleared
+and `body_cleared_at` says so — a NULL body there means the text aged out, not
+that the message was empty.
+
 The top tier is reserved for work this person has chosen — something in
 `attention/current_priorities.md`, or an active goal or project. External
 pressure alone, however loud, does not qualify. When you explain a ranking, say
