@@ -17,7 +17,12 @@ Read `$HERMES_HOME/workspace/memory/index.md`, then open only the pages it names
 on the question. Do not answer from recall. When you use a page, say which one
 in a short `Memory sources` line at the end.
 
-If the memory has no answer, say it is unknown. Never fill a gap with a
+An empty memory is not the same as no answer: the store may still hold
+obligations worth reporting, and saying "I know of nothing" while twelve rows
+sit in `obligations` is the failure this file exists to prevent. Read both
+before concluding.
+
+If neither has an answer, say it is unknown. Never fill a gap with a
 plausible guess — a fabricated fact about a colleague or a commitment is worse
 than an admission, because the next run will read it back as evidence.
 
@@ -32,6 +37,15 @@ than an admission, because the next run will read it back as evidence.
    a thread, or post on the person's behalf.
 
 ## The ranked list
+
+It lives in the store, not in the memory: `obligations` in
+`$HERMES_HOME/workspace/ledger/state.db`, ordered by `global_rank`. Read it
+whenever you are asked what to work on, what is outstanding, or what matters
+today — the memory says who this person is and what they have chosen, the
+store says what is currently owed, and a useful answer needs both.
+
+Query it with Python's `sqlite3` module. The `sqlite3` command-line tool is
+not installed in this sandbox, and discovering that mid-answer wastes a turn.
 
 The top tier is reserved for work this person has chosen — something in
 `attention/current_priorities.md`, or an active goal or project. External
