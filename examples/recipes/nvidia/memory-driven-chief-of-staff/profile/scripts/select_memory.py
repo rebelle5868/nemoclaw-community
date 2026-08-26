@@ -46,7 +46,15 @@ PEOPLE_THRESHOLD = 2
 
 # How far back the evidence window reaches. The store holds more; the point of
 # a page is who is around *now*.
+#
+# Thirty days is the default rather than the rule: a month is long enough that
+# somebody on leave for a fortnight still has a page, and short enough that a
+# collaborator from two projects ago stops competing for one. Move it with
+# `MEMORY_WINDOW_DAYS` — a wider window on a first run backfills a memory from
+# the history already collected, a narrower one keeps the pages to who is
+# around this week.
 WINDOW_DAYS = 30
+MAX_WINDOW_DAYS = 3650
 
 # Bounds on one pass, for the same reason the intake slice is bounded: a turn
 # that tries to write forty pages writes forty bad ones.
@@ -58,6 +66,29 @@ MAX_INTERACTIONS = 12
 AUTOMATED = re.compile(
     r"(no[-_.]?reply|do[-_.]?not[-_.]?reply|notifications?|alerts?|mailer|"
     r"automated|jenkins|gitlab|github|jira|bot)\b", re.I)
+
+
+def bounded_days(name: str, default: int) -> int:
+    """Read a positive, bounded day count from the environment.
+
+    Same shape as `retention.py` and for the same reason: a zero window
+    selects nobody and reports a quiet day that is not one, and a negative
+    puts the cutoff in the future so every sender qualifies at once. Both are
+    the kind of mistake only noticed by its consequences.
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise SystemExit(
+            f"{name} must be a whole number of days between 1 and "
+            f"{MAX_WINDOW_DAYS}; got {raw!r}")
+    if value < 1 or value > MAX_WINDOW_DAYS:
+        raise SystemExit(
+            f"{name} must be between 1 and {MAX_WINDOW_DAYS}; got {value}")
+    return value
 
 
 def memory_root():
@@ -181,15 +212,16 @@ def open_obligations(conn) -> list[dict[str, object]]:
 
 def main() -> int:
     ensure_store()
+    window = bounded_days("MEMORY_WINDOW_DAYS", WINDOW_DAYS)
     since = (datetime.now(timezone.utc)
-             - timedelta(days=WINDOW_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
+             - timedelta(days=window)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     with write_txn() as conn:
         found = evidence(conn, since)
         obligations = open_obligations(conn)
 
     report = {
-        "window_days": WINDOW_DAYS,
+        "window_days": window,
         "since": since,
         "people_threshold": PEOPLE_THRESHOLD,
         "memory_root": str(memory_root()),
